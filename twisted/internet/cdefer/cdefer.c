@@ -294,9 +294,14 @@ static PyObject *cdefer_Deferred__addCallbacks(cdefer_Deferred *self,
     }
 
     if (self->called) {
-        if (cdefer_Deferred__runCallbacks(self) == NULL) {
+        PyObject *_result;
+
+        _result = cdefer_Deferred__runCallbacks(self);
+
+        if (!_result)
             return NULL;
-        }
+
+        Py_DECREF(_result);
     }
 
     result = (PyObject *)self;
@@ -719,9 +724,6 @@ static PyObject *cdefer_Deferred__runCallbacks(cdefer_Deferred *self) {
             tmp = PyObject_Call(callback, newArgs2, kwargs);
             self->running_callbacks = 0;
             Py_DECREF(self->result);
-            if (PyObject_TypeCheck(self->result, &cdefer_DeferredType)) {
-                Py_DECREF(self->result);
-            }
             self->result = tmp;
 
             Py_CLEAR(newArgs2);
@@ -745,7 +747,8 @@ static PyObject *cdefer_Deferred__runCallbacks(cdefer_Deferred *self) {
                 continue;
             }
             if (PyObject_TypeCheck(self->result, &cdefer_DeferredType)) {
-                Py_INCREF(self->result);
+                PyObject *self_result;
+
                 if (PyList_SetSlice(cb, 0, self->callback_index, NULL) == -1) {
                     return NULL;
                 }
@@ -763,9 +766,12 @@ static PyObject *cdefer_Deferred__runCallbacks(cdefer_Deferred *self) {
                     return NULL;
                 }
 
+                self_result = self->result;
+                Py_INCREF(self_result);
                 result = cdefer_Deferred__addCallbacks(
                     (cdefer_Deferred *)self->result, _continue,
                     _continue, Py_None, Py_None, Py_None, Py_None);
+                Py_DECREF(self_result);
                 /* The reference was either copied/incref'd or not
                  * (when errored) in addCallbacks, either way, we own
                  * one too, and don't need it anymore. */
