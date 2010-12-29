@@ -546,7 +546,7 @@ static int cdefer_Deferred__verify_callback_entry(const char *callback_name,
     PyObject *callback;
     PyObject *args;
     PyObject *kw;
-    
+
     if (!PyTuple_Check(callback_entry)) {
         PyErr_Format(PyExc_TypeError, "%s entries must be tuples", callback_name);
         return -1;
@@ -563,7 +563,7 @@ static int cdefer_Deferred__verify_callback_entry(const char *callback_name,
                      callback_name);
         return -1;
     }
-    
+
     args = PyTuple_GET_ITEM(callback_entry, 1);
     if (Py_None != args) {
         if (Py_None == callback) {
@@ -641,7 +641,7 @@ static PyObject *cdefer_Deferred__runCallbacks(cdefer_Deferred *self) {
             if (cdefer_Deferred__verify_callbacks_item(item)) {
                 return NULL;
             }
-            
+
             if (PyObject_IsInstance(self->result, failure_class)) {
                 offset = 1;
                 callback_name = "errback";
@@ -658,7 +658,7 @@ static PyObject *cdefer_Deferred__runCallbacks(cdefer_Deferred *self) {
             if (cdefer_Deferred__verify_callback_entry(callback_name, callbacktuple)) {
                 return NULL;
             }
-            
+
             callback = PyTuple_GET_ITEM(callbacktuple, 0);
             if(!callback) {
                 return NULL;
@@ -725,7 +725,6 @@ static PyObject *cdefer_Deferred__runCallbacks(cdefer_Deferred *self) {
                 Py_DECREF(traceback);
                 continue;
             }
-            Py_INCREF(self->result);
             if (PyObject_TypeCheck(self->result, &cdefer_DeferredType)) {
                 if (PyList_SetSlice(cb, 0, self->callback_index, NULL) == -1) {
                     return NULL;
@@ -965,7 +964,7 @@ static PyObject *cdefer_DeferredMetaType_get_debug(PyObject *deferredClass, void
 
 static int cdefer_DeferredMetaType_set_debug(PyObject *deferredClass, PyObject *on, void *context) {
     int new_debug;
-    
+
     if (NULL == on) {
         PyErr_SetString(PyExc_TypeError, "Cannot delete the deprecated debug attribute!");
         return -1;
