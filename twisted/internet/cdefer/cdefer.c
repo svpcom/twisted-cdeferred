@@ -38,7 +38,9 @@
 #endif
 
 PyObject * failure_class = NULL;
+PyObject * deferred_class = NULL;
 PyObject * already_called = NULL;
+PyObject * cancelled_error = NULL;
 PyObject * debuginfo_class = NULL;
 PyObject * format_stack = NULL;
 
@@ -49,6 +51,8 @@ typedef struct {
     PyObject *callbacks;
     PyObject *debuginfo;
     int called;
+    int suppress_already_called;
+    PyObject *canceller;
     /* Current callback index in the callbacks list to run. This
      * allows clearing the list once per runCallbacks rather than
      * popping every item. It has to be per-deferred, because some
@@ -119,6 +123,7 @@ static PyObject *cdefer_Deferred_errback(cdefer_Deferred *self, PyObject *args,
 static PyObject *cdefer_Deferred__continue(cdefer_Deferred *self,
         PyObject *args, PyObject *kwargs);
 
+static PyObject *cdefer_Deferred_cancel(cdefer_Deferred *self, PyObject *args);
 
 static int is_debug = 0;
 
@@ -177,6 +182,7 @@ static void cdefer_Deferred_dealloc(PyObject *o) {
     Py_XDECREF(self->result);
     Py_XDECREF(self->debuginfo);
     Py_XDECREF(self->callbacks);
+    Py_XDECREF(self->canceller);
     (*o->ob_type->tp_free)(o);
 }
 
@@ -186,6 +192,7 @@ static int cdefer_Deferred_traverse(PyObject *o, visitproc visit, void *arg) {
     Py_VISIT(self->result);
     Py_VISIT(self->debuginfo);
     Py_VISIT(self->callbacks);
+    Py_VISIT(self->canceller);
     return 0;
 }
 
@@ -195,6 +202,7 @@ static int cdefer_Deferred_clear(PyObject *o) {
     Py_CLEAR(self->result);
     Py_CLEAR(self->debuginfo);
     Py_CLEAR(self->callbacks);
+    Py_CLEAR(self->canceller);
     return 0;
 }
 
@@ -216,9 +224,16 @@ static int cdefer_Deferred__set_debug_stack(cdefer_Deferred *self, char *name) {
 
 static int cdefer_Deferred___init__(cdefer_Deferred *self, PyObject *args,
                                     PyObject *kwargs) {
-    static char *argnames[] = {NULL};
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "", argnames)) {
+    static char *argnames[] = {"canceller", NULL};
+    PyObject *canceller = NULL;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|O", argnames, &canceller)) {
         return -1;
+    }
+    if (canceller)
+    {
+        self->canceller = canceller;
+        Py_INCREF(self->canceller);
     }
     if (is_debug) {
         self->debuginfo = PyObject_CallObject(debuginfo_class, NULL);
@@ -235,6 +250,7 @@ static int cdefer_Deferred___init__(cdefer_Deferred *self, PyObject *args,
     self->paused = 0;
     self->callback_index = 0;
     self->running_callbacks = 0;
+    self->suppress_already_called = 0;
     self->callbacks = PyList_New(0);
     if (!self->callbacks) {
         Py_CLEAR(self->debuginfo);
@@ -798,6 +814,17 @@ static PyObject *cdefer_Deferred__startRunCallbacks(cdefer_Deferred *self,
     }
 
     if (self->called) {
+        if (self->suppress_already_called)
+        {
+            PyObject *result;
+
+            self->suppress_already_called = 0;
+
+            result = Py_None;
+            Py_INCREF(result);
+
+            return result;
+        }
         if (is_debug) {
             debug_tracebacks = PyObject_CallMethod(
                 self->debuginfo, "_getDebugTracebacks", "s", "\n");
@@ -908,6 +935,73 @@ static PyObject *cdefer_Deferred__continue(cdefer_Deferred *self,
     return PyObject_CallMethod((PyObject *)self, "unpause", NULL);
 }
 
+static char cdefer_Deferred_cancel_doc[] =
+    "cancel()\n"
+    "Cancel this L{Deferred}.\nIf the L{Deferred} has not yet had its C{errback} or C{callback} method\n"
+    "invoked, call the canceller function provided to the constructor. If\n"
+    "that function does not invoke C{callback} or C{errback}, or if no\n"
+    "canceller function was provided, errback with L{CancelledError}.\n"
+    "\n"
+    "If this L{Deferred} is waiting on another L{Deferred}, forward the\n"
+    "cancellation to the other L{Deferred}.\n";
+
+static PyObject *cdefer_Deferred_cancel(cdefer_Deferred *self, PyObject *args) {
+    PyObject *result;
+
+    if (!self->called) {
+        if (self->canceller) {
+            PyObject *_result;
+
+            _result = PyObject_CallFunction(self->canceller, "O", self);
+            if (!_result) {
+                return NULL;
+            }
+            Py_DECREF(_result);
+        }
+        else
+            self->suppress_already_called = 1;
+
+        if (!self->called) {
+            PyObject *cancelled_instance;
+            PyObject *failure;
+            PyObject *_result;
+
+            cancelled_instance = PyObject_CallFunction(cancelled_error, "");
+            if (!cancelled_instance) {
+                return NULL;
+            }
+
+            failure = PyObject_CallFunction(failure_class, "(O)", cancelled_instance);
+            Py_DECREF(cancelled_instance);
+
+            if (!failure) {
+                return NULL;
+            }
+
+            _result = PyObject_CallMethod((PyObject *)self, "errback", "O", failure);
+            Py_DECREF(failure);
+
+            if (!_result) {
+                return NULL;
+            }
+            Py_DECREF(_result);
+        }
+
+    }
+    else if (PyObject_IsInstance(self->result, deferred_class)) {
+        PyObject *_result;
+        _result = PyObject_CallMethod(self->result, "cancel", NULL);
+        if (!_result) {
+            return NULL;
+        }
+        Py_DECREF(_result);
+    }
+
+    result = Py_None;
+    Py_INCREF(Py_None);
+    return result;
+}
+
 static struct PyMethodDef cdefer_Deferred_methods[] = {
   {"addCallbacks", (PyCFunction)cdefer_Deferred_addCallbacks,
                    METH_VARARGS|METH_KEYWORDS, cdefer_Deferred_addCallbacks_doc},
@@ -929,6 +1023,8 @@ static struct PyMethodDef cdefer_Deferred_methods[] = {
               METH_VARARGS, cdefer_Deferred_unpause_doc},
   {"_continue", (PyCFunction)cdefer_Deferred__continue,
                 METH_VARARGS|METH_KEYWORDS, ""},
+  {"cancel", (PyCFunction)cdefer_Deferred_cancel,
+            METH_VARARGS, cdefer_Deferred_cancel_doc},
   {0, 0, 0, 0}
 };
 
@@ -1141,12 +1237,19 @@ PyMODINIT_FUNC initcdefer(void) {
         goto Error;
     }
 
+    deferred_class = (PyObject *)&cdefer_DeferredType;
+
     defer_module = PyImport_ImportModule("twisted.internet.defer");
     if (!defer_module) {
         goto Error;
     }
     already_called = PyObject_GetAttrString(defer_module, "AlreadyCalledError");
     if (!already_called) {
+        goto Error;
+    }
+
+    cancelled_error = PyObject_GetAttrString(defer_module, "CancelledError");
+    if (!cancelled_error) {
         goto Error;
     }
 
