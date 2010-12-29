@@ -741,8 +741,8 @@ static PyObject *cdefer_Deferred__runCallbacks(cdefer_Deferred *self) {
                 Py_DECREF(traceback);
                 continue;
             }
-            Py_INCREF(self->result);
             if (PyObject_TypeCheck(self->result, &cdefer_DeferredType)) {
+                Py_INCREF(self->result);
                 if (PyList_SetSlice(cb, 0, self->callback_index, NULL) == -1) {
                     return NULL;
                 }
