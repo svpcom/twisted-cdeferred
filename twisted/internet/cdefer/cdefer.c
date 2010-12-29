@@ -719,6 +719,9 @@ static PyObject *cdefer_Deferred__runCallbacks(cdefer_Deferred *self) {
             tmp = PyObject_Call(callback, newArgs2, kwargs);
             self->running_callbacks = 0;
             Py_DECREF(self->result);
+            if (PyObject_TypeCheck(self->result, &cdefer_DeferredType)) {
+                Py_DECREF(self->result);
+            }
             self->result = tmp;
 
             Py_CLEAR(newArgs2);
