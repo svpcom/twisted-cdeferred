@@ -783,25 +783,33 @@ class Request:
         if ctype is not None:
             ctype = ctype[0]
 
-        if self.method == "POST" and ctype:
-            mfd = 'multipart/form-data'
-            key, pdict = cgi.parse_header(ctype)
-            if key == 'application/x-www-form-urlencoded':
-                args.update(parse_qs(self.content.read(), 1))
-            elif key == mfd:
+        if self.method == "POST":
+            if not ctype:
                 try:
-                    args.update(cgi.parse_multipart(self.content, pdict))
-                except KeyError, e:
-                    if e.args[0] == 'content-disposition':
-                        # Parse_multipart can't cope with missing
-                        # content-dispostion headers in multipart/form-data
-                        # parts, so we catch the exception and tell the client
-                        # it was a bad request.
-                        self.channel.transport.write(
-                                "HTTP/1.1 400 Bad Request\r\n\r\n")
-                        self.channel.transport.loseConnection()
-                        return
-                    raise
+                    args.update(parse_qs(self.content.read(), 1))
+                except:
+                    # ignore exception
+                    pass
+            else:
+                mfd = 'multipart/form-data'
+                key, pdict = cgi.parse_header(ctype)
+
+                if key == 'application/x-www-form-urlencoded':
+                    args.update(parse_qs(self.content.read(), 1))
+                elif key == mfd:
+                    try:
+                        args.update(cgi.parse_multipart(self.content, pdict))
+                    except KeyError, e:
+                        if e.args[0] == 'content-disposition':
+                            # Parse_multipart can't cope with missing
+                            # content-dispostion headers in multipart/form-data
+                            # parts, so we catch the exception and tell the client
+                            # it was a bad request.
+                            self.channel.transport.write(
+                                    "HTTP/1.1 400 Bad Request\r\n\r\n")
+                            self.channel.transport.loseConnection()
+                            return
+                        raise
             self.content.seek(0, 0)
 
         self.process()
