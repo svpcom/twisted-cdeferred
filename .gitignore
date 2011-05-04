@@ -1,0 +1,4 @@
+env/
+*.so
+twisted/plugins/dropin.cache
+_trial_temp/
