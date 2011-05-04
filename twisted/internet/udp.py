@@ -15,6 +15,7 @@ import socket
 import operator
 import struct
 import warnings
+from collections import deque
 
 from zope.interface import implements
 
@@ -62,6 +63,7 @@ class Port(base.BasePort):
         self.interface = interface
         self.setLogStr()
         self._connectedAddr = None
+        self._buffer = deque(maxlen=1000)
 
     def __repr__(self):
         if self._realPortNumber is not None:
@@ -131,6 +133,45 @@ class Port(base.BasePort):
                 except:
                     log.err()
 
+    def _send(self, datagram, addr):
+        """Actually sends UDP datagram.
+
+        Returns C{True} if datagram was sent, C{False} in case of temporal error,
+        raises in case of permanent error.
+        """
+
+        try:
+            if self._connectedAddr:
+                assert addr in (None, self._connectedAddr)
+                self.socket.send(datagram)
+            else:
+                assert addr is not None
+                self.socket.sendto(datagram, addr)
+
+        except socket.error as se:
+            no = se.args[0]
+            if no in (EAGAIN, EINTR, EWOULDBLOCK):
+                return False
+            elif no == EMSGSIZE:
+                raise error.MessageLengthError("datagram too long - %d bytes" % len(datagram))
+            elif no == ECONNREFUSED:
+                self.protocol.connectionRefused()
+                return False
+            else:
+                raise
+
+        return True
+
+    def doWrite(self):
+        """Send buffered datagrams."""
+
+        while self._buffer:
+            datagram, addr = self._buffer.popleft()
+            if not self._send(datagram, addr):
+                self._buffer.appendleft((datagram, addr))
+                return
+
+        self.stopWriting()
 
     def write(self, datagram, addr=None):
         """
@@ -144,40 +185,10 @@ class Port(base.BasePort):
         @param addr: A tuple of (I{stringified dotted-quad IP address},
             I{integer port number}); can be C{None} in connected mode.
         """
-        if self._connectedAddr:
-            assert addr in (None, self._connectedAddr)
-            try:
-                return self.socket.send(datagram)
-            except socket.error, se:
-                no = se.args[0]
-                if no == EINTR:
-                    return self.write(datagram)
-                elif no == EMSGSIZE:
-                    raise error.MessageLengthError, "message too long"
-                elif no == ECONNREFUSED:
-                    self.protocol.connectionRefused()
-                else:
-                    raise
-        else:
-            assert addr != None
-            if not addr[0].replace(".", "").isdigit() and addr[0] != "<broadcast>":
-                warnings.warn("Please only pass IPs to write(), not hostnames",
-                              DeprecationWarning, stacklevel=2)
-            try:
-                return self.socket.sendto(datagram, addr)
-            except socket.error, se:
-                no = se.args[0]
-                if no == EINTR:
-                    return self.write(datagram, addr)
-                elif no == EMSGSIZE:
-                    raise error.MessageLengthError, "message too long"
-                elif no == ECONNREFUSED:
-                    # in non-connected UDP ECONNREFUSED is platform dependent, I
-                    # think and the info is not necessarily useful. Nevertheless
-                    # maybe we should call connectionRefused? XXX
-                    return
-                else:
-                    raise
+
+        if not self._send(datagram, addr):
+            self._buffer.append((datagram, addr))
+            self.startWriting()
 
     def writeSequence(self, seq, addr):
         self.write("".join(seq), addr)
