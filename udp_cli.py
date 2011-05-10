@@ -19,15 +19,15 @@ class Helloer(DatagramProtocol):
     def pinger(self):
         self.n += 1
         self.transport.write("%d\n" % self.n)
-        print "sent %d" % self.n
+        print "sent %d, transport %r" % (self.n, self.transport)
 
     def datagramReceived(self, data, (host, port)):
-        print "received %r from %s:%d" % (data, host, port)
+        print "received %r from %s:%d, transport %r" % (data, host, port, self.transport)
 
     # Possibly invoked if there is no server listening on the
     # address to which we are sending.
     def connectionRefused(self):
-        print "No one listening"
+        print "No one listening, transport %r" % self.transport
 
 # 0 means any port, we don't care in this case
 reactor.listenUDP(0, Helloer())
