@@ -112,6 +112,7 @@ class Port(base.BasePort):
         """
         Called when my socket is ready for reading.
         """
+        print "IN READ"
         read = 0
         while read < self.maxThroughput:
             try:
@@ -121,6 +122,7 @@ class Port(base.BasePort):
                 if no in (EAGAIN, EINTR, EWOULDBLOCK):
                     return
                 if (no == ECONNREFUSED) or (platformType == "win32" and no == WSAECONNRESET):
+                    print "READ CONN REFUSED"
                     if self._connectedAddr:
                         self.protocol.connectionRefused()
                 else:
@@ -138,6 +140,7 @@ class Port(base.BasePort):
         Returns C{True} if datagram was sent, C{False} in case of temporal error,
         raises in case of permanent error.
         """
+        print "IN SEND FOR %r" % datagram
         try:
             if self._connectedAddr:
                 assert addr in (None, self._connectedAddr)
@@ -147,6 +150,7 @@ class Port(base.BasePort):
                 self.socket.sendto(datagram, addr)
 
         except socket.error as se:
+            print "GOT ERR %r" % se
             no = se.args[0]
             if no in (EAGAIN, EINTR, EWOULDBLOCK):
                 return False
@@ -162,9 +166,11 @@ class Port(base.BasePort):
 
     def doWrite(self):
         """Send buffered datagrams."""
+        print "IN DO WRITE"
         while self._buffer:
             datagram, addr = self._buffer.popleft()
             if not self._send(datagram, addr):
+                print "PUTTING BACK %r" % datagram
                 self._buffer.appendleft((datagram, addr))
                 return
 
@@ -182,7 +188,9 @@ class Port(base.BasePort):
         @param addr: A tuple of (I{stringified dotted-quad IP address},
             I{integer port number}); can be C{None} in connected mode.
         """
+        print "IN WRITE FOR %r" % datagram
         if not self._send(datagram, addr):
+            print "ACTIVATING WRITE for %r" % datagram
             self._buffer.append((datagram, addr))
             self.startWriting()
 
