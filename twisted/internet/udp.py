@@ -108,7 +108,6 @@ class Port(base.BasePort):
         self.protocol.makeConnection(self)
         self.startReading()
 
-
     def doRead(self):
         """
         Called when my socket is ready for reading.
@@ -139,7 +138,6 @@ class Port(base.BasePort):
         Returns C{True} if datagram was sent, C{False} in case of temporal error,
         raises in case of permanent error.
         """
-
         try:
             if self._connectedAddr:
                 assert addr in (None, self._connectedAddr)
@@ -164,7 +162,6 @@ class Port(base.BasePort):
 
     def doWrite(self):
         """Send buffered datagrams."""
-
         while self._buffer:
             datagram, addr = self._buffer.popleft()
             if not self._send(datagram, addr):
@@ -185,7 +182,6 @@ class Port(base.BasePort):
         @param addr: A tuple of (I{stringified dotted-quad IP address},
             I{integer port number}); can be C{None} in connected mode.
         """
-
         if not self._send(datagram, addr):
             self._buffer.append((datagram, addr))
             self.startWriting()
