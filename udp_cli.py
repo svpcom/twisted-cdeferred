@@ -6,19 +6,19 @@ from twisted.internet import reactor, task
 class Helloer(DatagramProtocol):
 
     def startProtocol(self):
-        host = "10.3.2.95"
-        port = 1234
+        self.host = "10.3.2.174"
+        self.port = 1234
 
         self.n = 0
 
-        self.transport.connect(host, port)
-        print "now we can only send to host %s port %d" % (host, port)
-        self.transport.write("hello") # no need for address
+        # self.transport.connect(host, port)
+        print "sending to host %s port %d" % (self.host, self.port)
+        self.transport.write("hello", (self.host, self.port))
         task.LoopingCall(self.pinger).start(1)
 
     def pinger(self):
         self.n += 1
-        self.transport.write("%d\n" % self.n)
+        self.transport.write("%d\n" % self.n, (self.host, self.port))
         print "sent %d, transport %r" % (self.n, self.transport)
 
     def datagramReceived(self, data, (host, port)):
