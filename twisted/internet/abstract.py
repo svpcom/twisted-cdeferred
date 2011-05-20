@@ -274,24 +274,6 @@ class FileDescriptor(_ConsumerMixin):
         if not self.connected or self._writeDisconnected:
             return
         if data:
-            if not self._tempDataBuffer and not self.dataBuffer and not self.disconnecting and not self._writeDisconnected:
-                l = self.writeSomeData(data)
-
-                if l < 0 or isinstance(l, Exception):
-                    return l
-
-                if l == len(data):
-                    if self.producer is not None and ((not self.streamingProducer)
-                                                      or self.producerPaused):
-                        self.startWriting()
-                    elif self.disconnecting:
-                        self.startWriting()
-                    elif self._writeDisconnecting:
-                        self.startWriting()
-                    return
-
-                data = data[l:]
-
             self._tempDataBuffer.append(data)
             self._tempDataLen += len(data)
             # If we are responsible for pausing our producer,
