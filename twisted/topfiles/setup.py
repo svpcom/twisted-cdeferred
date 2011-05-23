@@ -25,10 +25,6 @@ extensions = [
     Extension("twisted.test.raiser",
               ["twisted/test/raiser.c"]),
 
-    Extension("twisted.python._epoll",
-              ["twisted/python/_epoll.c"],
-              condition=lambda builder: builder._check_header("sys/epoll.h")),
-
     Extension('twisted.internet.cdefer',
               ['twisted/internet/cdefer/cdefer.c']),
 
