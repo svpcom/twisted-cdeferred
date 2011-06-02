@@ -23,11 +23,8 @@ from twisted.python.dist import twisted_subprojects
 
 extensions = [
     Extension("twisted.test.raiser",
-              ["twisted/test/raiser.c"]),
-
-    Extension("twisted.python._epoll",
-              ["twisted/python/_epoll.c"],
-              condition=lambda builder: builder._check_header("sys/epoll.h")),
+              ["twisted/test/raiser.c"],
+               condition=lambda builder: sys.subversion[0] != "PyPy"),
 
     Extension('twisted.internet.cdefer',
               ['twisted/internet/cdefer/cdefer.c']),
