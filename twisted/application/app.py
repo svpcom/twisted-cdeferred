@@ -197,6 +197,9 @@ class AppLogger(object):
 
     def __init__(self, options):
         self._logfilename = options.get("logfile", "")
+        self._logrotatelength = options.get("logrotatelength", 1048576)
+        self._logmaxfiles = options.get("logmaxfiles", None)
+        self._logfilemode = options.get("logfilemode", None)
 
 
     def start(self, application):
@@ -238,7 +241,8 @@ class AppLogger(object):
         if self._logfilename == '-' or not self._logfilename:
             logFile = sys.stdout
         else:
-            logFile = logfile.LogFile.fromFullPath(self._logfilename)
+            logFile = logfile.LogFile.fromFullPath(self._logfilename, rotateLength=self._logrotatelength,
+                    defaultMode=self._logfilemode, maxRotatedFiles=self._logmaxfiles)
         return log.FileLogObserver(logFile).emit
 
 
@@ -537,6 +541,12 @@ class ServerOptions(usage.Options, ReactorSelectionMixin):
 
     optParameters = [['logfile','l', None,
                       "log to a specified file, - for stdout"],
+                     ['logrotatelength', None, 1048576,
+                      "Size of the log file where it rotates", int],
+                     ['logmaxfiles', None, None,
+                      "Maximum number of log files to keep", int],
+                     ['logfilemode', None, None,
+                      "Default file mode to create the file", lambda mode: int(mode, 8)],
                      ['profile', 'p', None,
                       "Run in profile mode, dumping results to specified file"],
                      ['profiler', None, "hotshot",
