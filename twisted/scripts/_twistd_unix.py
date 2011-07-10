@@ -136,7 +136,10 @@ class UnixAppLogger(app.AppLogger):
         else:
             if not self._logfilename:
                 self._logfilename = 'twistd.log'
-            logFile = logfile.LogFile.fromFullPath(self._logfilename)
+            logFile = logfile.LogFile.fromFullPath(self._logfilename,
+                    rotateLength=self._logrotatelength,
+                    defaultMode=self._logfilemode,
+                    maxRotatedFiles=self._logmaxfiles)
             try:
                 import signal
             except ImportError:

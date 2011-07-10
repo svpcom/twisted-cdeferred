@@ -17,6 +17,7 @@ Maintainer: Glyph Lefkowitz
 """
 
 import traceback
+import types
 import warnings
 from sys import exc_info
 

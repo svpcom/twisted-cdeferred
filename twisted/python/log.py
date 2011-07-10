@@ -290,8 +290,14 @@ class LogPublisher:
             except:
                 observer = self.observers[i]
                 self.observers[i] = lambda event: None
-                err(failure.Failure(),
-                    "Log observer %s failed." % (observer,))
+                try:
+                    err(failure.Failure(),
+                        "Log observer %s failed." % (observer,))
+                except:
+                    # Sometimes err() will throw an exception,
+                    # e.g. RuntimeError due to blowing the stack; if that
+                    # happens, there's not much we can do...
+                    pass
                 self.observers[i] = observer
 
 
@@ -522,7 +528,13 @@ class PythonLoggingObserver(object):
 
 class StdioOnnaStick:
     """
-    Class that pretends to be stout/err.
+    Class that pretends to be stdout/err, and turns writes into log messages.
+
+    @ivar isError: boolean indicating whether this is stderr, in which cases
+                   log messages will be logged as errors.
+
+    @ivar encoding: unicode encoding used to encode any unicode strings
+                    written to this object.
     """
 
     closed = 0
@@ -530,8 +542,11 @@ class StdioOnnaStick:
     mode = 'wb'
     name = '<stdio (log)>'
 
-    def __init__(self, isError=0):
+    def __init__(self, isError=0, encoding=None):
         self.isError = isError
+        if encoding is None:
+            encoding = sys.getdefaultencoding()
+        self.encoding = encoding
         self.buf = ''
 
     def close(self):
@@ -552,6 +567,8 @@ class StdioOnnaStick:
     tell = read
 
     def write(self, data):
+        if isinstance(data, unicode):
+            data = data.encode(self.encoding)
         d = (self.buf + data).split('\n')
         self.buf = d[-1]
         messages = d[0:-1]
@@ -560,6 +577,8 @@ class StdioOnnaStick:
 
     def writelines(self, lines):
         for line in lines:
+            if isinstance(line, unicode):
+                line = line.encode(self.encoding)
             msg(line, printed=1, isError=self.isError)
 
 
@@ -623,8 +642,9 @@ def discardLogs():
 try:
     logfile
 except NameError:
-    logfile = StdioOnnaStick(0)
-    logerr = StdioOnnaStick(1)
+    logfile = StdioOnnaStick(0, getattr(sys.stdout, "encoding", None))
+    logerr = StdioOnnaStick(1, getattr(sys.stderr, "encoding", None))
+
 
 
 class DefaultObserver:
