@@ -4,7 +4,7 @@ import sys
 
 from twisted.internet import reactor
 
-from twisted.trial import unittest, util
+from twisted.trial import unittest
 
 from twisted.internet.defer import waitForDeferred, deferredGenerator, Deferred
 from twisted.internet import defer
